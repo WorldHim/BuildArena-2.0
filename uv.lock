@@ -52,6 +52,11 @@ dependencies = [
     { name = "trimesh" },
 ]
 
+[package.optional-dependencies]
+render = [
+    { name = "scipy" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "imageio-ffmpeg", specifier = ">=0.6.0" },
@@ -59,9 +64,11 @@ requires-dist = [
     { name = "numpy-quaternion", specifier = ">=2024.0.8" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "python-fcl", specifier = ">=0.7.0.8" },
+    { name = "scipy", marker = "extra == 'render'", specifier = ">=1.13" },
     { name = "tqdm", specifier = ">=4.67.0" },
     { name = "trimesh", specifier = ">=4.6.10" },
 ]
+provides-extras = ["render"]
 
 [[package]]
 name = "certifi"

@@ -210,3 +210,20 @@ uv run python scripts/rebuild_from_record.py --record-json ".local/Machine/<mach
 ```
 
 Rebuilding creates a new timestamped machine output.
+
+## Render a build-history animation
+
+Render one valid-only history JSON into a continuously orbiting build animation,
+with automatic background deflicker, retimed step subtitles, resumable PNG frames,
+and full MP4 validation:
+
+```powershell
+uv run --extra render python scripts/render_history.py control/examples/rocket_orbit_return/machine.json
+```
+
+Use **Blender 5.1.1** with BesiegeCreationImporter source commit
+**`c2c2b8b5d1171c03aee05c2f888c394aa3775345`** and configured game assets.
+Blender, importer source, and game assets are **not bundled in this repository**:
+install Blender separately; the renderer fetches the pinned importer into the
+git-ignored `.local/` cache. Defaults to 1080p/30 fps.
+See [exact versions, installation and offline setup](docs/rendering.md).

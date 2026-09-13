@@ -191,3 +191,15 @@ uv run python scripts/rebuild_from_record.py --record-json ".local/Machine/<mach
 ```
 
 重建会生成带新时间戳的机器输出。
+
+## 渲染建造历史动画
+
+以有效操作历史 JSON 为唯一必需输入，自动生成连续环绕的搭建动画、去除背景鬼影帧、同步步骤字幕，并验证 MP4：
+
+```powershell
+uv run --extra render python scripts/render_history.py control/examples/rocket_orbit_return/machine.json
+```
+
+默认 1080p、30 fps，支持中断续跑。请使用 **Blender 5.1.1** 和 **BesiegeCreationImporter 源码提交 `c2c2b8b5d1171c03aee05c2f888c394aa3775345`**，并配置好游戏资源。
+
+**本仓库不包含 Blender、导入器源码或游戏素材。** Blender 需单独安装；导入器在首次渲染时自动下载到 Git 忽略的 `.local/` 缓存。详见[固定版本、安装及离线配置说明](rendering.md)。
