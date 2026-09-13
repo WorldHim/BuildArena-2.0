@@ -10,7 +10,11 @@
 
 </div>
 
-BuildArena 2.0 gives AI agents an end-to-end engineering workflow in
+## Welcome, User & Agent
+
+BuildArena 2.0 is an engineering construction arena where you build with AI
+agents in Besiege, a physics sandbox for land, sea, and space machines.
+It gives AI agents an end-to-end engineering workflow in
 [Besiege](https://store.steampowered.com/app/346010/_/): **automated game launch
 and execution, machine construction, closed-loop control, telemetry, and timeline
 replay**, with a Python interface and **MCP tools**. Powered by
@@ -18,13 +22,82 @@ replay**, with a Python interface and **MCP tools**. Powered by
 and the Besiege CLI, agents can build a machine, run it, observe its behavior, and
 control it in simulation.
 
+This repository connects to **your installed Steam copy of the game**. It needs
+the game's block geometry, DLC content, and ToolKit to build and test machines;
+the repository does not include the game, DLC, or Workshop mod.
+
 - **[Construction Challenge](https://build-arena.github.io/ConstructionChallenge/)**: tracks, scoring, rules, and submissions.
 - **[BuildArena 1.0 (ICML 2026)](https://build-arena.github.io/)**: the original benchmark, paper, and project.
 - **[Control guide](./control/README.md)**: run commands, controllers, telemetry, and replay.
 
+## Before setup: complete the prerequisites
+
+**Required order: prepare the game and MOD → pass one-command setup → run examples.**
+These examples run real simulations in your installed game. Cloning the repository
+or installing Python dependencies alone is not enough to reproduce them.
+
+“Prerequisites complete” means **all** of the following are ready:
+
+1. Use **Windows 10 or 11**, with Steam installed and signed in.
+2. Own a **licensed Steam copy** of [Besiege](https://store.steampowered.com/app/346010/_/)
+   and **both DLC**: [The Splintered Sea](https://store.steampowered.com/app/2165710/Besiege_The_Splintered_Sea/)
+   and [The Broken Beyond](https://store.steampowered.com/app/3639470/Besiege_The_Broken_Beyond/).
+   **Install all three and wait for Steam downloads/updates to finish.** Ownership
+   alone is not enough; the DLC supply the water and space blocks used here.
+3. Subscribe to the specified Workshop MOD,
+   [BuildArena ToolKit](https://steamcommunity.com/sharedfiles/filedetails/?id=3795335349)
+   (**item 3795335349**), and **wait for Steam to download it**. A subscription
+   without downloaded files is not ready. Disable retired Controller, Block Tracker,
+   Collider Dumper, and Block Inspector mods; use the current ToolKit.
+4. Confirm Besiege launches from Steam. If you are new to the game, spend a few
+   minutes entering a sandbox, loading a machine, and starting/stopping simulation.
+
+**Only then proceed to one-command setup.** Setup automates the local configuration
+and validation; it does not purchase or install Besiege/DLC or subscribe on your behalf.
+
+## One-command setup
+
+**Only after completing the prerequisites above**, run this from the repository
+root in PowerShell on Windows 10 or 11:
+
+```powershell
+uv run python scripts/setup.py
+```
+
+**No [uv](https://docs.astral.sh/uv/) installed?** Use the wrapper, which installs `uv`, runs `uv sync`,
+and launches the same setup script:
+
+```powershell
+powershell -ExecutionPolicy ByPass -File scripts\setup.ps1
+```
+
+Setup configures local paths, enables ToolKit, collects/verifies block data,
+generates the control catalog, and runs two in-game tests: an all-block telemetry
+smoke test and the rocket orbit-and-return mission. It then writes `mcp.json`.
+**Setup is complete only when the command exits successfully and
+`.local/setup-report.json` records `status=passed`.** If it reports `blocked` or
+`failed`, resolve the reported issue and rerun setup before running examples.
+
+### Non-default game location
+
+Provide the game-data path if setup cannot find your Besiege installation:
+
+```powershell
+uv run python scripts/setup.py --besiege-data "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"
+```
+
+With the wrapper, use `-BesiegeData "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"`.
+Point to **`Besiege_Data`**, not the installation root. To locate it, use
+**Steam → Besiege → Manage → Browse local files**.
+
+Rerun setup after resolving a missing prerequisite. It checks actual artifacts
+before continuing.
+
 ## Run three automatic machine examples
 
-After [one-command setup](#one-command-setup), run these from the repository root.
+**Run these only after [one-command setup](#one-command-setup) passes**
+(`.local/setup-report.json`: `status=passed`). From the repository root, run
+**one example at a time** and wait for it to finish before starting the next.
 Each command rebuilds its final machine from **one MCP tool-history JSON**, then
 launches the game and runs the complete controller:
 
@@ -63,48 +136,6 @@ a tqdm progress bar; simulation starts without a countdown or recording reminder
 The default tail is 20 simulation seconds after controller completion.
 Use `--tail-seconds` or `--prepare-only` as needed.
 The latter only rebuilds, without loading or simulating in the game.
-
-## One-command setup
-
-**On Windows 10 or 11, run this from the repository root in PowerShell:**
-
-```powershell
-uv run python scripts/setup.py
-```
-
-**No [uv](https://docs.astral.sh/uv/) installed?** Use the wrapper, which installs `uv`, runs `uv sync`,
-and launches the same setup script:
-
-```powershell
-powershell -ExecutionPolicy ByPass -File scripts\setup.ps1
-```
-
-Setup configures everything automatically and runs two machine tests in Besiege.
-Just sit back and watch them run on screen.
-
-### When you need to intervene
-
-The automated setup has only three expected cases requiring human input:
-
-1. **Purchase and install the game and both DLC through Steam:**
-   [Besiege](https://store.steampowered.com/app/346010/_/),
-   [The Splintered Sea](https://store.steampowered.com/app/2165710/Besiege_The_Splintered_Sea/),
-   and [The Broken Beyond](https://store.steampowered.com/app/3639470/Besiege_The_Broken_Beyond/).
-2. **Subscribe to [BuildArena ToolKit](https://steamcommunity.com/sharedfiles/filedetails/?id=3795335349)
-   and let Steam download it.** The published Workshop item is required; there is
-   no local-mod fallback.
-3. **Provide the game-data path if Besiege is outside the default Steam location:**
-
-   ```powershell
-   uv run python scripts/setup.py --besiege-data "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"
-   ```
-
-   With the wrapper, use `-BesiegeData "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"`.
-   Point to **`Besiege_Data`**, not the installation root. To locate it, use
-   **Steam → Besiege → Manage → Browse local files**.
-
-Rerun setup after resolving a missing prerequisite. It checks actual artifacts
-before continuing.
 
 ## Diagnostics
 

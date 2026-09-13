@@ -1,5 +1,6 @@
-# BuildArena one-command setup bootstrap / 一键配置引导脚本
+﻿# BuildArena one-command setup bootstrap / 一键配置引导脚本
 #
+# Keep UTF-8 with BOM: Windows PowerShell 5.1 must decode the bilingual text.
 # Usage / 用法（在仓库根目录 PowerShell 运行）:
 #   powershell -ExecutionPolicy ByPass -File scripts\setup.ps1
 #   powershell -ExecutionPolicy ByPass -File scripts\setup.ps1 -BesiegeData "D:\Games\Besiege\Besiege_Data"

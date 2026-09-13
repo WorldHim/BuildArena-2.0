@@ -2,7 +2,10 @@
 
 ## One-command run
 
-After [one-command setup](../../../README.md#one-command-setup), run this from the repository root in PowerShell:
+First complete the [game and MOD prerequisites](../../../README.md#before-setup-complete-the-prerequisites),
+then pass [one-command setup](../../../README.md#one-command-setup)
+(`.local/setup-report.json`: `status=passed`). Only then run this from the repository
+root in PowerShell, with no other example running:
 
 ```powershell
 uv run python control/examples/transforming_car_aerobatics/run.py

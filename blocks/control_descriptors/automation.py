@@ -6,9 +6,12 @@ _ACTIVATE_EMULATE = {
 }
 
 CONTROL_SEMANTICS = {
-    58: {"descriptions": {
-        "ActivateKey": "Switches the player view to this camera."
-    }},
+    58: {
+        "descriptions": {"ActivateKey": "Switches the player view to this camera."},
+        "ignored": {
+            "channel_0": "Camera activation (F) is reserved for manual camera control."
+        },
+    },
     62: {
         "descriptions": {"VacuumKey": "Turns the vacuum suction on."},
         "aliases": {"On": "VacuumKey"},

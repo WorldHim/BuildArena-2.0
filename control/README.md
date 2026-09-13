@@ -5,6 +5,13 @@ Besiege machines with BuildArena ToolKit 2.0.9.
 
 ## Requirements
 
+**First complete the [game and MOD prerequisites](../README.md#before-setup-complete-the-prerequisites),
+then pass [one-command setup](../README.md#one-command-setup), then run examples.**
+You need an installed licensed Steam copy of Besiege, both DLC (The Splintered
+Sea and The Broken Beyond), and the downloaded BuildArena ToolKit Workshop item
+3795335349. Setup must finish successfully with `.local/setup-report.json`
+recording `status=passed`; `uv sync` alone does not prepare the game.
+
 - Python 3.12+ and `uv`
 - Besiege with the verified BuildArena ToolKit 2.0.9 Release enabled
 - `BESIEGE_DATA_PATH` set to the game's `Besiege_Data` directory
@@ -27,7 +34,8 @@ uv run python -m besiege_cli --help
 ## Three complete machine examples
 
 Each directory below contains one `machine.json` MCP operation history and
-Python code only. Run from the repository root:
+Python code only. After setup passes, run from the repository root, one example
+at a time:
 
 ```powershell
 uv run python control/examples/rocket_orbit_return/run.py

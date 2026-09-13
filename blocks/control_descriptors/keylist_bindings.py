@@ -32,7 +32,7 @@ KEYLIST_BINDINGS = {
     54: {"DetonateKey": 0},
     56: {"ShootKey": 0},
     57: {},
-    58: {},
+    58: {},  # Camera activation is manually controlled; its descriptor ignores slot 0.
     59: {"LaunchKey": 0},
     61: {"FireKey": 0},
     62: {"VacuumKey": 0},

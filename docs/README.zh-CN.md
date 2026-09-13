@@ -10,20 +10,83 @@
 
 </div>
 
-BuildArena 2.0 为 AI Agent 在
+## 欢迎 User 与 Agent
+
+BuildArena 2.0 是一个与 AI Agent 一起建造机器的工程竞技场，基于支持陆地、
+海洋与太空机器的物理沙盒游戏 Besiege。它为 AI Agent 在
 [Besiege](https://store.steampowered.com/app/346010/_/) 中提供端到端工程工作流：
 **自动启动并运行游戏、机器建造、闭环控制、遥测与时间线回放**，并提供
 Python 接口和 **MCP 工具**。借助
 [BuildArena ToolKit](https://steamcommunity.com/sharedfiles/filedetails/?id=3795335349)
 与 Besiege CLI，Agent 可以在仿真中建造机器、运行、观察行为并实施控制。
 
+本项目需要连接**你本机安装的 Steam 正版游戏**，使用其中的方块几何数据、
+DLC 内容和 ToolKit 来建造、运行机器。仓库不包含游戏、DLC 或 Workshop MOD。
+
 - **[Construction Challenge](https://build-arena.github.io/ConstructionChallenge/)**：赛道、评分、规则与提交。
 - **[BuildArena 1.0 (ICML 2026)](https://build-arena.github.io/)**：原始基准、论文与项目页面。
 - **[控制指南](../control/README.md)**：运行命令、控制器、遥测与回放。
 
+## 配置前：先完成前置准备工作
+
+**必须按顺序进行：准备游戏和 MOD → 一键配置并通过验收 → 运行 example 复现。**
+案例会在本机游戏中执行真实仿真；仅下载仓库或安装 Python 依赖，不能直接运行案例看效果。
+
+“配置的前置准备工作完成”是指以下条件**全部满足**：
+
+1. 使用 **Windows 10 或 11**，安装 Steam 并登录。
+2. **拥有 Steam 正版 [Besiege](https://store.steampowered.com/app/346010/_/) 及两个 DLC**：
+   [The Splintered Sea](https://store.steampowered.com/app/2165710/Besiege_The_Splintered_Sea/)
+   和 [The Broken Beyond](https://store.steampowered.com/app/3639470/Besiege_The_Broken_Beyond/)。
+   **游戏本体与两个 DLC 均已安装，Steam 下载和更新全部完成。** 只购买但未安装不算完成；
+   水上与太空方块来自这些 DLC。
+3. **订阅指定 Workshop MOD [BuildArena ToolKit](https://steamcommunity.com/sharedfiles/filedetails/?id=3795335349)**
+   （条目 ID：**3795335349**），并**等待 Steam 下载完成**。只点订阅但未下载不算完成。
+   关闭已退役的 Controller、Block Tracker、Collider Dumper、Block Inspector 模组，使用当前 ToolKit。
+4. 确认可以从 Steam 正常启动 Besiege。新玩家建议先熟悉进入沙盒、加载机器、开始和停止仿真。
+
+**以上全部完成后，才能进行一键配置。** 一键配置负责本机环境配置与验收，
+不会替你购买、安装游戏或 DLC，也不会替你订阅 MOD。
+
+## 一键配置
+
+**只有完成上面的前置准备后**，才能在 Windows 10 或 11 上，于仓库根目录用 PowerShell 运行：
+
+```powershell
+uv run python scripts/setup.py
+```
+
+**尚未安装 [uv](https://docs.astral.sh/uv/)？** 使用包装脚本，它会安装 `uv`、运行 `uv sync`，
+并启动同一套配置脚本：
+
+```powershell
+powershell -ExecutionPolicy ByPass -File scripts\setup.ps1
+```
+
+脚本会配置本机路径、启用 ToolKit、采集或校验方块数据、生成控制通道目录，
+并在游戏中运行全块遥测冒烟测试和火箭入轨返回任务，最后生成 `mcp.json`。
+**只有命令成功退出，且 `.local/setup-report.json` 中记录 `status=passed`，
+才算“一键配置完成”。** 如果状态为 `blocked` 或 `failed`，请按提示解决问题，
+重新运行配置并通过验收后，再运行 example。
+
+### 非默认游戏安装位置
+
+若配置脚本找不到 Besiege，请提供游戏数据目录：
+
+```powershell
+uv run python scripts/setup.py --besiege-data "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"
+```
+
+使用包装脚本时，传入 `-BesiegeData "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"`。
+请指向 **`Besiege_Data`**，而不是安装根目录。定位方法：
+**Steam → Besiege → Manage → Browse local files**。
+
+补齐缺失前提后重新运行配置。脚本会在继续前检查真实产物。
+
 ## 三种自动控制案例
 
-完成一键配置后，在仓库根目录运行，无需 PowerShell 启动脚本：
+**只有[一键配置](#一键配置)通过验收后**（`.local/setup-report.json` 中
+`status=passed`），才能在仓库根目录运行以下案例。**每次只运行一个，结束后再运行下一个**：
 
 ```powershell
 # 重型火箭入轨、绕行一圈并返回着陆
@@ -46,47 +109,6 @@ uv run python control/examples/shuttle_booster_recovery/run.py
 同一历史的重建 GUID 稳定，允许重复重建后复用 camera。用游戏镜头和 OBS 等自行录制，
 不启用 CLI 屏幕录像或自动跟随。重建时显示 tqdm 进度条，完成后无倒计时或录制提示；控制器结束后留 20 个仿真秒。
 可用 `--tail-seconds` 调整，或用 `--prepare-only` 仅离线重建。所有生成文件都保存在 Git 忽略的 `datacache` 内。
-
-## 一键配置
-
-**在 Windows 10 或 11 上，于仓库根目录用 PowerShell 运行：**
-
-```powershell
-uv run python scripts/setup.py
-```
-
-**尚未安装 [uv](https://docs.astral.sh/uv/)？** 使用包装脚本，它会安装 `uv`、运行 `uv sync`，
-并启动同一套配置脚本：
-
-```powershell
-powershell -ExecutionPolicy ByPass -File scripts\setup.ps1
-```
-
-配置会自动完成全部设置，并在 Besiege 中运行两台机器测试。
-坐下来看屏幕上的演示即可。
-
-### 需要人工介入的情况
-
-自动配置仅在以下三种预期情况下需要人工输入：
-
-1. **通过 Steam 购买并安装游戏及两个 DLC：**
-   [Besiege](https://store.steampowered.com/app/346010/_/)、
-   [The Splintered Sea](https://store.steampowered.com/app/2165710/Besiege_The_Splintered_Sea/)
-   和 [The Broken Beyond](https://store.steampowered.com/app/3639470/Besiege_The_Broken_Beyond/)。
-2. **订阅 [BuildArena ToolKit](https://steamcommunity.com/sharedfiles/filedetails/?id=3795335349)
-   并等待 Steam 下载。** 必须使用已发布的 Workshop 条目；
-   没有本地模组回退路径。
-3. **若 Besiege 不在默认 Steam 路径下，请提供游戏数据目录：**
-
-   ```powershell
-   uv run python scripts/setup.py --besiege-data "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"
-   ```
-
-   使用包装脚本时，传入 `-BesiegeData "D:\SteamLibrary\steamapps\common\Besiege\Besiege_Data"`。
-   请指向 **`Besiege_Data`**，而不是安装根目录。定位方法：
-   **Steam → Besiege → Manage → Browse local files**。
-
-补齐缺失前提后重新运行配置。脚本会在继续前检查真实产物。
 
 ## 诊断
 
