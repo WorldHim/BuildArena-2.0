@@ -173,6 +173,9 @@ mcp.json
 /documents
 .vscode/
 /.local/*
+datacache/
+__pycache__/
+
 
 
 # Frontend caches / local dependency trees
