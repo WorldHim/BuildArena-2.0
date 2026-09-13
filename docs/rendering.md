@@ -4,6 +4,13 @@ The renderer takes a **valid-only build-history JSON** as its sole required cont
 
 You do not need to supply a BSG file, Blender scene, or list of bad frames. The output is a construction presentation, not a recording of gameplay or physics simulation.
 
+## Acknowledgements
+
+This rendering pipeline builds on the work of two upstream projects:
+
+- **[Blender](https://www.blender.org/)** — thanks to the Blender Foundation and the Blender contributors for the open-source 3D creation suite and EEVEE rendering engine used to produce these animations.
+- **[BesiegeCreationImporter](https://github.com/arkangel-dev/BesiegeCreationImporter)** — thanks to arkangel-dev and the project's contributors for the importer that brings Besiege machines and their geometry into Blender.
+
 ## External dependencies and exact versions
 
 **This repository provides only the rendering pipeline, scene-generation code, and deflicker code. It does not bundle Blender, BesiegeCreationImporter source, or Besiege game assets.** Obtain these dependencies separately from their respective sources. Do not commit their installation directories, source checkouts, or game assets to this repository.
