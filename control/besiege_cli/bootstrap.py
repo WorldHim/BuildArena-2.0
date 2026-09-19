@@ -440,10 +440,12 @@ def _keylist_cache_rows(cache_path: Path) -> dict[int, list[str]]:
     if not cache_path.is_file():
         return rows
     for raw in cache_path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
-        line = raw.strip()
-        if not line:
+        # Strip only to test for a blank line. Splitting the unstripped line
+        # preserves a trailing tab, which marks a third (empty) field and so a
+        # real empty KeyList slot, distinct from the two-column zero-channel form.
+        if not raw.strip():
             continue
-        parts = line.split("\t")
+        parts = raw.split("\t")
         try:
             block_id = int(parts[0])
         except (ValueError, IndexError):
@@ -534,7 +536,6 @@ def _prime_keylist_cache(
     *,
     orchestrator: BesiegeOrchestrator,
     saved_dir: Path,
-    cache_path: Path,
     timeout: float,
 ) -> dict[str, Any]:
     """Load the assembled validation machine, run it briefly, and stop, so the
@@ -718,71 +719,13 @@ def run_bootstrap(
             )
         )
 
-        cache_path = data_dir / KEYLIST_CACHE_NAME
-        cached = keylist_cache_complete(cache_path=cache_path)
-        force_fresh_inspector = False
-        if cached:
-            print(
-                "KeyList cache is complete; skipping the load-and-run prime. "
-                f"({len(cached)} block(s) covered)",
-                flush=True,
-            )
-            report.add(
-                Stage(
-                    name="prime_keylist",
-                    status=STAGE_PASSED,
-                    message="complete",
-                    detail={"mode": "cache_complete", "block_count": len(cached)},
-                )
-            )
-        else:
-            print(
-                "KeyList cache is missing blocks. Loading the assembled validation "
-                "machine and running it briefly to populate the ToolKit keylist cache.",
-                flush=True,
-            )
-            prime_detail = _prime_keylist_cache(
-                orchestrator=orchestrator,
-                saved_dir=saved_dir,
-                cache_path=cache_path,
-                timeout=launch_timeout,
-            )
-            refreshed = keylist_cache_complete(cache_path=cache_path)
-            missing_detail: list[int] = []
-            if not refreshed:
-                cached_rows = _keylist_cache_rows(cache_path)
-                for block_id, (bound, _ignored) in _keylist_cache_needed_blocks().items():
-                    if not bound:
-                        continue
-                    if len(cached_rows.get(block_id, ())) < max(bound) + 1:
-                        missing_detail.append(block_id)
-            if not refreshed:
-                raise BootstrapError(
-                    "KeyList cache is still incomplete after loading and running the "
-                    f"validation machine; missing block IDs {sorted(set(missing_detail))}. "
-                    "This may indicate a game-version or DLC-authorization difference. "
-                    "Manually load the assembled_validation machine in Besiege, run it, "
-                    "and re-run setup."
-                )
-            report.add(
-                Stage(
-                    name="prime_keylist",
-                    status=STAGE_PASSED,
-                    message="primed",
-                    detail={"mode": "primed", "rebuilt_bsg": prime_detail.get("bsg")},
-                )
-            )
-            # A fresh keylist cache invalidates any reused Inspector behaviour file.
-            force_fresh_inspector = True
-
         from buildarena.validation_machine import inspect_dlc_block_ids
 
         dlc_block_ids = inspect_dlc_block_ids()
         dump_report = existing_collider_dump(data_dir=data_dir)
         complete = False
         if (
-            not force_fresh_inspector
-            and skip_inspector_request_if_complete
+            skip_inspector_request_if_complete
             and inspector_dump_reusable(report=dump_report)
         ):
             if dump_report is None:
@@ -862,6 +805,83 @@ def run_bootstrap(
                 detail={"expected": {key: list(value) for key, value in dlc_block_ids.items()}},
             )
         )
+
+        # KeyList priming runs here, after the Inspector has copied the collider
+        # dump: inspecting the registry (to build the validation machine) reads
+        # COLLIDER_DUMP_PATH, so it cannot run before this point on a clean
+        # checkout. The cache is only consumed later, at catalog assembly.
+        cache_path = data_dir / KEYLIST_CACHE_NAME
+        cached = keylist_cache_complete(cache_path=cache_path)
+        if cached:
+            print(
+                "KeyList cache is complete; skipping the load-and-run prime. "
+                f"({len(cached)} block(s) covered)",
+                flush=True,
+            )
+            report.add(
+                Stage(
+                    name="prime_keylist",
+                    status=STAGE_PASSED,
+                    message="complete",
+                    detail={"mode": "cache_complete", "block_count": len(cached)},
+                )
+            )
+        else:
+            print(
+                "KeyList cache is missing blocks. Loading the assembled validation "
+                "machine and running it briefly to populate the ToolKit keylist cache.",
+                flush=True,
+            )
+            prime_detail = _prime_keylist_cache(
+                orchestrator=orchestrator,
+                saved_dir=saved_dir,
+                timeout=launch_timeout,
+            )
+            refreshed = keylist_cache_complete(cache_path=cache_path)
+            if not refreshed:
+                missing_detail: list[int] = []
+                cached_rows = _keylist_cache_rows(cache_path)
+                for block_id, (bound, _ignored) in _keylist_cache_needed_blocks().items():
+                    if not bound:
+                        continue
+                    if len(cached_rows.get(block_id, ())) < max(bound) + 1:
+                        missing_detail.append(block_id)
+                raise BootstrapError(
+                    "KeyList cache is still incomplete after loading and running the "
+                    f"validation machine; missing block IDs {sorted(set(missing_detail))}. "
+                    "This may indicate a game-version or DLC-authorization difference. "
+                    "Manually load the assembled_validation machine in Besiege, run it, "
+                    "and re-run setup."
+                )
+            # The cache was empty during the first Inspector scan, so that
+            # behaviour_types has stale (empty) key_list_channels. Re-scan now
+            # that the cache is populated and refresh the file the catalog uses.
+            request_id = write_inspector_request(data_dir=data_dir)
+            ensure_fresh_sandbox(orchestrator=orchestrator, timeout=launch_timeout)
+            payload = wait_for_inspector_report(
+                data_dir=data_dir, request_id=request_id, timeout=inspector_timeout
+            )
+            inspector_report = collect_inspector_artifacts(
+                data_dir=data_dir, request_id=request_id, payload=payload
+            )
+            copied = copy_inspector_artifacts(
+                report=inspector_report,
+                collider_dest=collider_dest,
+                behaviour_dest=behaviour_dest,
+                catalog_dest=catalog_dest,
+            )
+            report.add(
+                Stage(
+                    name="prime_keylist",
+                    status=STAGE_PASSED,
+                    message="primed",
+                    detail={
+                        "mode": "primed",
+                        "rebuilt_bsg": prime_detail.get("bsg"),
+                        "rescan_request_id": inspector_report.request_id,
+                    },
+                )
+            )
 
         if not behaviour_dest.is_file():
             raise BootstrapError(
