@@ -460,49 +460,40 @@ def _keylist_cache_rows(cache_path: Path) -> dict[int, list[str]]:
     return rows
 
 
-def _disabled_runtime_block_ids() -> set[int]:
-    """Block IDs disabled in the shipped registry (``runtime_defs``).
-
-    Disabled blocks are excluded from the validation machine, so they are
-    never loaded/run and can never populate the live KeyList cache. They
-    must not be required by the prime completeness check.
-    """
-    from buildarena.paths import get_block_registry_path
-
-    import tomllib
-
-    with get_block_registry_path().open("rb") as handle:
-        registry_obj = tomllib.load(handle)
-    runtime_defs = registry_obj.get("runtime_defs", {})
-    disabled: set[int] = set()
-    for raw_key, block_def in runtime_defs.items():
-        if not isinstance(block_def, dict):
-            continue
-        if not bool(block_def.get("enabled", True)):
-            try:
-                disabled.add(int(raw_key))
-            except (TypeError, ValueError):
-                continue
-    return disabled
+# Connector blocks placed via connect_blocks() in build_validation_machine,
+# which appear in the loaded machine but are not in inspect_registry's
+# render_blocks (type=connection entries are excluded there). Keeping the
+# prime requirement in sync with the builder avoids demanding coverage for a
+# connection the machine never wires up.
+_PRIME_CONNECTED_BLOCK_IDS = {7, 9, 45, 75, 96}  # Brace, Spring, Rope Winch, Rope Measure, Fuel Line
 
 
 def _keylist_cache_needed_blocks() -> dict[int, tuple[list[int], set[int]]]:
-    """For every block whose catalog slots the assembly validates, return
-    ``(bound_slots, ignored_channel_indices)``.
+    """For every block the validation machine loads and whose catalog slots
+    the assembly validates, return ``(bound_slots, ignored_channel_indices)``.
 
     Mirrors ``assemble_channel_catalog``: a block needs live KeyList coverage
     when it declares real binding slots, or declares ``channel_N`` ignored
     entries that a prefab-only pass cannot observe. Blocks with neither
-    require nothing from the cache. Blocks disabled in the registry are
-    excluded because they are never built into the validation machine and so
-    can never be captured.
+    require nothing from the cache.
+
+    The candidate set is exactly what ``build_validation_machine`` places:
+    ``inspect_registry().render_blocks`` (which already excludes disabled,
+    EXCLUDE_IDS, unplaceable, and un-``connect``ed connection blocks) plus the
+    connectors wired via ``connect_blocks`` plus the Starting Block pads. This
+    keeps the requirement aligned with what is actually loaded and run, so a
+    block the builder cannot capture is never demanded here.
     """
     from buildarena.control_descriptor_loader import load_control_semantics
+    from buildarena.validation_machine import inspect_registry
 
-    disabled = _disabled_runtime_block_ids()
+    placed = {inspection.block_id for inspection in inspect_registry().render_blocks}
+    placed |= _PRIME_CONNECTED_BLOCK_IDS
+    placed.add(0)  # Starting Block pads
+
     needed: dict[int, tuple[list[int], set[int]]] = {}
-    for block_id in KEYLIST_BINDINGS:
-        if block_id in disabled:
+    for block_id in placed:
+        if block_id not in KEYLIST_BINDINGS:
             continue
         semantics = load_control_semantics(block_id=block_id)
         if semantics is None:
@@ -565,8 +556,11 @@ def _prime_keylist_cache(
     try:
         start_seq = orchestrator.send_command("start_sim")
         orchestrator.wait_for_command_result(start_seq, timeout=timeout)
-        orchestrator.wait_for_simulating(True, timeout=timeout)
+        # Mark the simulation as started as soon as it is acknowledged, so the
+        # finally block always issues a compensating stop_sim even if the
+        # subsequent simulating=True wait (or the hold loop) times out.
         sim_started = True
+        orchestrator.wait_for_simulating(True, timeout=timeout)
         end = time.monotonic() + PRIME_SIM_HOLD_SECONDS
         while time.monotonic() < end:
             time.sleep(0.25)
