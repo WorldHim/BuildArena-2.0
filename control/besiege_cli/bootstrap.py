@@ -42,7 +42,13 @@ from .orchestrator import BesiegeOrchestrator, OrchestratorTimeoutError
 from .paths import datacache_dir, mod_data_dir
 from .preflight import PreflightError
 from .run import RunFailedError, cmd_run
-from .session import DEFAULT_SANDBOX_LEVEL, ensure_game, ensure_sandbox, quit_game
+from .session import (
+    DEFAULT_SANDBOX_LEVEL,
+    ensure_fresh_sandbox,
+    ensure_game,
+    ensure_sandbox,
+    quit_game,
+)
 from .steam import (
     detect_besiege_data,
     dlc_manifest_status,
@@ -443,8 +449,13 @@ def _keylist_cache_rows(cache_path: Path) -> dict[int, list[str]]:
         except (ValueError, IndexError):
             continue
         channels: list[str] = []
-        if len(parts) >= 3 and parts[2].strip():
-            channels = [item.strip() for item in parts[2].split(",") if item.strip()]
+        # Preserve every field, including empty strings: an empty KeyList
+        # value is still a real slot (assemble_channel_catalog keeps these
+        # entries for exactly this reason), so `key0,,key2` must stay three
+        # slots rather than being compressed to two. Zero channels are
+        # expressed by the two-column form (no third field).
+        if len(parts) >= 3:
+            channels = [item.strip() for item in parts[2].split(",")]
         rows[block_id] = channels
     return rows
 
@@ -541,21 +552,31 @@ def _prime_keylist_cache(
 
     inspection = inspect_registry()
     machine = build_validation_machine(output_dir=saved_dir, inspection=inspection)
-    ensure_sandbox(orchestrator=orchestrator, timeout=timeout, force=True)
+    # ensure_fresh_sandbox, not ensure_sandbox(force=True): re-sending
+    # enter_sandbox for a scene already loaded returns immediately on the
+    # stale heartbeat, so load_machine right after could race the reload.
+    ensure_fresh_sandbox(orchestrator=orchestrator, timeout=timeout)
     installed_name = orchestrator.install_machine(
         source_bsg=machine.bsg_path, name="assembled_validation.bsg"
     )
     load_seq = orchestrator.send_command("load_machine", path=installed_name)
     orchestrator.wait_for_command_result(load_seq, timeout=timeout)
-    start_seq = orchestrator.send_command("start_sim")
-    orchestrator.wait_for_command_result(start_seq, timeout=timeout)
-    orchestrator.wait_for_simulating(True, timeout=timeout)
-    end = time.monotonic() + PRIME_SIM_HOLD_SECONDS
-    while time.monotonic() < end:
-        time.sleep(0.25)
-    stop_seq = orchestrator.send_command("stop_sim")
-    orchestrator.wait_for_command_result(stop_seq, timeout=timeout)
-    orchestrator.wait_for_simulating(False, timeout=timeout)
+    sim_started = False
+    try:
+        start_seq = orchestrator.send_command("start_sim")
+        orchestrator.wait_for_command_result(start_seq, timeout=timeout)
+        orchestrator.wait_for_simulating(True, timeout=timeout)
+        sim_started = True
+        end = time.monotonic() + PRIME_SIM_HOLD_SECONDS
+        while time.monotonic() < end:
+            time.sleep(0.25)
+    finally:
+        # Always stop the simulation so a timed-out prime does not leave
+        # Besiege simulating and affect the next setup/run.
+        if sim_started:
+            stop_seq = orchestrator.send_command("stop_sim")
+            orchestrator.wait_for_command_result(stop_seq, timeout=timeout)
+            orchestrator.wait_for_simulating(False, timeout=timeout)
     return {
         "bsg": str(machine.bsg_path),
         "saved_machine_dir": str(saved_dir),
@@ -735,9 +756,11 @@ def run_bootstrap(
             refreshed = keylist_cache_complete(cache_path=cache_path)
             missing_detail: list[int] = []
             if not refreshed:
+                cached_rows = _keylist_cache_rows(cache_path)
                 for block_id, (bound, _ignored) in _keylist_cache_needed_blocks().items():
-                    rows = _keylist_cache_rows(cache_path)
-                    if any(slot not in rows.get(block_id, ()) for slot in bound):
+                    if not bound:
+                        continue
+                    if len(cached_rows.get(block_id, ())) < max(bound) + 1:
                         missing_detail.append(block_id)
             if not refreshed:
                 raise BootstrapError(
