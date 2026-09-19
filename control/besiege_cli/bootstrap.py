@@ -509,26 +509,38 @@ def _keylist_cache_needed_blocks() -> dict[int, tuple[list[int], set[int]]]:
     return needed
 
 
+def _keylist_uncovered_block_ids(
+    *, rows: dict[int, list[str]], needed: dict[int, tuple[list[int], set[int]]]
+) -> list[int]:
+    """Block IDs whose observed KeyList slots do not match their declared slots.
+
+    Mirrors ``assemble_channel_catalog`` exactly: a block is covered when its
+    observed slot set (``range(len(cached))``) equals the set of declared
+    binding slots plus ignored ``channel_N`` indices, or when an empty cache
+    matches an ignored-only declaration (the Starting Block's inert KeyList).
+    This is stricter than a minimum-count check: an extra native slot is a
+    mismatch that would fail catalog assembly, so it must not count as covered.
+    """
+    gaps: list[int] = []
+    for block_id, (bound, ignored) in needed.items():
+        cached = rows.get(block_id, ())
+        expected = set(bound) | ignored
+        observed = set(range(len(cached)))
+        if expected != observed and not (not cached and expected == ignored):
+            gaps.append(block_id)
+    return gaps
+
+
 def keylist_cache_complete(*, cache_path: Path) -> dict[int, list[str]]:
     """Return the parsed cache when every validated block is covered, else ``{}``.
 
-    The cache lists a block's native keys in KeyList-slot order, so a block
-    is covered when it exposes at least ``max(slot)+1`` channels for its
-    declared binding slots. Blocks that only declare ignored ``channel_N``
-    entries (e.g. the Starting Block's inert KeyList) are covered by the
-    presence of a slot with that index, mirroring the catalog's
-    unobserved-ignored-slot exemption.
+    Coverage uses the same exact-slot condition as ``assemble_channel_catalog``,
+    so a cache accepted here cannot later fail catalog assembly.
     """
     rows = _keylist_cache_rows(cache_path)
     needed = _keylist_cache_needed_blocks()
-    for block_id, (bound, ignored) in needed.items():
-        cached = rows.get(block_id, ())
-        required = (max(bound) + 1) if bound else 0
-        if len(cached) < required:
-            return {}
-        for idx in ignored:
-            if idx >= len(cached) and idx not in set(bound):
-                return {}
+    if _keylist_uncovered_block_ids(rows=rows, needed=needed):
+        return {}
     return rows
 
 
@@ -839,13 +851,10 @@ def run_bootstrap(
             )
             refreshed = keylist_cache_complete(cache_path=cache_path)
             if not refreshed:
-                missing_detail: list[int] = []
-                cached_rows = _keylist_cache_rows(cache_path)
-                for block_id, (bound, _ignored) in _keylist_cache_needed_blocks().items():
-                    if not bound:
-                        continue
-                    if len(cached_rows.get(block_id, ())) < max(bound) + 1:
-                        missing_detail.append(block_id)
+                missing_detail = _keylist_uncovered_block_ids(
+                    rows=_keylist_cache_rows(cache_path),
+                    needed=_keylist_cache_needed_blocks(),
+                )
                 raise BootstrapError(
                     "KeyList cache is still incomplete after loading and running the "
                     f"validation machine; missing block IDs {sorted(set(missing_detail))}. "
