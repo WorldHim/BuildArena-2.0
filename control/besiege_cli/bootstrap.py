@@ -565,14 +565,13 @@ def _prime_keylist_cache(
     )
     load_seq = orchestrator.send_command("load_machine", path=installed_name)
     orchestrator.wait_for_command_result(load_seq, timeout=timeout)
-    sim_started = False
+    start_requested = False
     try:
         start_seq = orchestrator.send_command("start_sim")
+        # The game may start even if its acknowledgement is delayed or lost.
+        # Arrange cleanup as soon as the command has been sent, before waiting.
+        start_requested = True
         orchestrator.wait_for_command_result(start_seq, timeout=timeout)
-        # Mark the simulation as started as soon as it is acknowledged, so the
-        # finally block always issues a compensating stop_sim even if the
-        # subsequent simulating=True wait (or the hold loop) times out.
-        sim_started = True
         orchestrator.wait_for_simulating(True, timeout=timeout)
         end = time.monotonic() + PRIME_SIM_HOLD_SECONDS
         while time.monotonic() < end:
@@ -580,7 +579,7 @@ def _prime_keylist_cache(
     finally:
         # Always stop the simulation so a timed-out prime does not leave
         # Besiege simulating and affect the next setup/run.
-        if sim_started:
+        if start_requested:
             stop_seq = orchestrator.send_command("stop_sim")
             orchestrator.wait_for_command_result(stop_seq, timeout=timeout)
             orchestrator.wait_for_simulating(False, timeout=timeout)
